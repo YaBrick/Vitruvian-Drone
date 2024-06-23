@@ -1,4 +1,4 @@
-<p align="center"><img src="buildroot/Logos/full-color-og.jpeg" height="500" alt="MarlinFirmware's logo" /></p>
+<p align="center"><img src="buildroot/Logos/full-color-og.jpeg" height="500" alt="Vitruvian's logo" /></p>
 
 Official Vitruvian's Git with different versions of the algorithm for our competion
 
