@@ -8,8 +8,8 @@ import urllib
 # 0 -> acess a local saved image (needs to inform the image path)
 # 1 -> physical local camera acess (remember to set the correct vidinput value below according to your purposes)
 # 2 -> remote images acess(web), useful for IP cameras, needs to inform the image url
-imageAcessMethod = 1
-imagePath = r""
+imageAcessMethod = 0
+imagePath = "Tests/test1.png"
 imageUrl = ""
 
 ### AREA FILTER (IN px) ###
@@ -18,7 +18,7 @@ aFilter = 100  # every area smaller is disregarded
 ### FRAME/IMAGE PASSING ###
 # 0 -> manual
 # 1 or any other value (passing delay in ms) -> auto
-framePassing = 0
+framePassing = 1000    
 
 ### SHOW PARSED VIDEO WITH ALL THE FILTERS###
 showparsedvideo = 1
@@ -40,21 +40,25 @@ vidinput = 0
    and show to the camera
 '''
 
-### PIXELS TO CM^2 CONVERSION VARS  ###
-# base values needs to be discovered by testing, once you have them for your specific camera
-# the code can convert any area at any heigth for this camera
-baseH = 28  # base distance between the camera and the figure(heigth) in cm
-actualH = 28  # distance received by the sensord (heigth) in cm
-x = actualH/baseH
-baseArea = 50000  # base figure area in pixels
-baseAreaCm = 100  # base figure area in cm^2 (real area)
-# converts the base area(already know for a specific height)...
-actualBaseArea = baseArea/(x*x)
-# to the estimated size it should be in the actual height (px)
 
 
 def nothing(n):
     pass
+
+def getdistance():
+    return 100
+### PIXELS TO CM^2 CONVERSION VARS  ###
+#RPi CAMERA 2.1:
+#Vertical Field of View (VFoV) = 48,8´
+#Horizontal Field of View (HFoV) = 62,2´
+def AreaConverter(distance, Area):
+    vx = 0.907 * distance #ratio between lidar distance and Vertical Field of View (VFoV) of 48,8´ - in case of using other camera the ratio = 2*tan([camera VFoV angle]/2)*x
+    hx = 1.206 * distance #ratio between lidar distance and Horizontal Field of View (HFoV) of 62,2´ - in case of using other camera the ratio = 2*tan([camera HFoV angle]/2)*x
+
+    S_multiplier = vx*hx
+    actualArea = Area/(cv2.CAP_PROP_FRAME_WIDTH*cv2.CAP_PROP_FRAME_HEIGHT)*S_multiplier #convert to the estimated size it should be in the actual height (px)
+    return actualArea
+
 
 
 # pre set hsv values
@@ -63,7 +67,7 @@ iHighH = 200
 iLowS = 0
 iHighS = 126
 iLowV = 82
-iHighV = 255
+iHighV = 100
 
 # pre set canny values (set for local and remote images)
 cannyMinVal = 50
@@ -71,7 +75,8 @@ cannyMaxVal = 100
 
 if usehsv == 1:
     # dinamical control of hsv (useful when camera acessing)
-    cv2.namedWindow('Control')
+    cv2.namedWindow('Control', cv2.WINDOW_NORMAL)
+    cv2.resizeWindow("Control", 400, 100) 
     cv2.createTrackbar("LowH", "Control", iLowH, 255, nothing)
     cv2.createTrackbar("HighH", "Control", iHighH, 255, nothing)
     cv2.createTrackbar("LowS", "Control", iLowS, 255, nothing)
@@ -84,42 +89,46 @@ cv2.namedWindow('Canny min and max')
 cv2.createTrackbar('Min', 'Canny min and max', cannyMinVal, 500, nothing)
 cv2.createTrackbar('Max', 'Canny min and max', cannyMaxVal, 500, nothing)
 
+#RESOLUTION SETTINGS
+resTrack = (1640, 1232)
 cam = cv2.VideoCapture(vidinput)
+cam.set( cv2.CAP_PROP_FRAME_WIDTH, resTrack[0])
+cam.set( cv2.CAP_PROP_FRAME_HEIGHT, resTrack[1])
 
 print(cam.get(cv2.CAP_PROP_FRAME_HEIGHT))
 print(cam.get(cv2.CAP_PROP_FRAME_WIDTH))
 
+
+
 if imageAcessMethod == 0:  # local image
     img = cv2.imread(imagePath)
-    grayImg = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-    blur = cv2.GaussianBlur(grayImg, (5, 5), 0)
-    canny = cv2.Canny(blur, cannyMinVal, cannyMaxVal, L2gradient=True)
+    cannyMinVal = 50
+    cannyMaxVal = 100
+    canny = cv2.Canny(img, cannyMinVal, cannyMaxVal, L2gradient=True)
 
     contours, hierarchy = cv2.findContours(
         canny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     cv2.drawContours(img, contours, -1, (0, 255, 0), 3)
-    smallImg = cv2.resize(img, (600, 800))  # only for img showing
-    cv2.imshow('Detected contours', smallImg)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    cv2.imshow('Detected contours', img)
 
+    selContours = []
     # FILTERS AND CALCULATES THE AREA FOR EACH CONTOUR
     for i, contour in enumerate(contours):
         if cv2.contourArea(contour) < aFilter:
             continue
+        selContours.append(contour)
+
         # calcula a area em pixels a partir do contorno (precisao muito alta)
-        cv2.drawContours(img, contours, i, (0, 0, 255), 3)
-        smallImg = cv2.resize(img, (600, 800))  # only for img showing
-        cv2.imshow(f"Contour {i}", smallImg)
-
         area = cv2.contourArea(contour)  # actual contour area (px)
-
-        areacm = (area*baseAreaCm)/actualBaseArea  # converts to cm^2
-        print(f'Contour {i}: {area}px  |   {areacm}cm^2')
-
-        cv2.waitKey(framePassing)
-        print('-'*30)
+        actualArea = AreaConverter(getdistance(), area)  # converts to cm^2
+        print(f'Contour {i}: {area}px  |   {actualArea}cm^2')
+    cv2.drawContours(img, selContours, -1, (0, 0, 255), 3)
+    cv2.imshow('Selected Contours', img)
+    print('-'*30)
+    while True:
+        if cv2.waitKey(framePassing) & 0xFF == 27:
+            break
+    cv2.destroyAllWindows()
 elif imageAcessMethod == 1:  # camera frames
     while True:
         # returns image from the camera
@@ -149,7 +158,7 @@ elif imageAcessMethod == 1:  # camera frames
 
             hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
             h, w = img.shape[:2]
-            img = cv2.inRange(hsv, lower, higher)
+            img = cv2.inRange(hsv, lower, higher)   
         else:
             img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
@@ -157,7 +166,6 @@ elif imageAcessMethod == 1:  # camera frames
             # Output of the image to be analized later
             cv2.imshow('CameraView', img)
 
-    ##################################### END OF IMAGE EDITING, BEGINNING OF CONTOURES#####################################
 
         # Canny - binarize image contours by their gradient
         raw_contours = cv2.Canny(
@@ -182,10 +190,11 @@ elif imageAcessMethod == 1:  # camera frames
             if cv2.contourArea(contour) < aFilter:
                 continue
             selContours.append(contour)
-            area = cv2.contourArea(contour)  # actual contour area (px)
 
-            areacm = (area*baseAreaCm)/actualBaseArea  # converts to cm^2
-            print(f'Contour {i}: {area}px  |   {areacm}cm^2')
+            Area = cv2.contourArea(contour)  # actual contour area (px)
+            actualArea = AreaConverter(getdistance(), Area)
+
+            print(f'Contour {i}: {Area}px  |   {actualArea}cm^2')
         cv2.drawContours(frame, selContours, -1, (0, 0, 255), 3)
         cv2.imshow('Selected Contours', frame)
         print('-'*30)
