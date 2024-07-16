@@ -57,7 +57,7 @@ if usemavlink:
     master = mavutil.mavlink_connection(connection_string)
     print("Waiting for heartbeat")
     master.wait_heartbeat()
-    print("Heartbeat from system (system %u component %u)" % (the_connection.target_system, the_connection.target_component))
+    print("Heartbeat from system (system %u component %u)" % (master.target_system, master.target_component))
 
 
 def nothing(n):
