@@ -22,7 +22,7 @@ aFilter = 100  # every area smaller is disregarded
 framePassing = 1000    
 
 ### SHOW PARSED VIDEO WITH ALL THE FILTERS###
-showparsedvideo = 1
+showparsedvideo = 1 
 
 ### MAIN FUNCION - CANNY ###
 usecanny = 1
@@ -35,7 +35,7 @@ usehsv = 0
 vidinput = 0
 
 ### STOP EVERY OUTPUT WINDOW, EVEN CANNY VALUES CHANGERS###
-showanyoutput = 1
+showanyoutput = 0
 
 ### USE MAVLINK CONNECTION (turn on only on the RPi)
 usemavlink = 0
@@ -55,7 +55,10 @@ usemavlink = 0
 if usemavlink:
     connection_string = '/dev/serial0, 57600'
     master = mavutil.mavlink_connection(connection_string)
+    print("Waiting for heartbeat")
     master.wait_heartbeat()
+    print("Heartbeat from system (system %u component %u)" % (the_connection.target_system, the_connection.target_component))
+
 
 def nothing(n):
     pass
@@ -125,9 +128,10 @@ if usehsv == 1:
     cv2.createTrackbar("HighV", "Control", iHighV, 255, nothing)
 
 # only works for camera acess images
-cv2.namedWindow('Canny min and max')
-cv2.createTrackbar('Min', 'Canny min and max', cannyMinVal, 500, nothing)
-cv2.createTrackbar('Max', 'Canny min and max', cannyMaxVal, 500, nothing)
+if showanyoutput:
+    cv2.namedWindow('Canny min and max')
+    cv2.createTrackbar('Min', 'Canny min and max', cannyMinVal, 500, nothing)
+    cv2.createTrackbar('Max', 'Canny min and max', cannyMaxVal, 500, nothing)
 
 #RESOLUTION SETTINGS
 resTrack = (1640, 1232)
@@ -176,9 +180,9 @@ elif imageAcessMethod == 1:  # camera frames
         if not sucess:
             print("Error getting the frame, did you select de correct vidinput?")
             break
-
-        cannyMinVal = cv2.getTrackbarPos('Min', 'Canny min and max')
-        cannyMaxVal = cv2.getTrackbarPos('Max', 'Canny min and max')
+        if showanyoutput:
+            cannyMinVal = cv2.getTrackbarPos('Min', 'Canny min and max')
+            cannyMaxVal = cv2.getTrackbarPos('Max', 'Canny min and max')
 
         # Gaussian Blur - reduce image noise. There are other functions to test for our purposes
         img = cv2.GaussianBlur(frame, (5, 5), 0)
